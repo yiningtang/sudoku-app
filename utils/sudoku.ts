@@ -73,25 +73,78 @@ function isValidPlacement(board: number[][], row: number, col: number, num: numb
   return true
 }
 
+// Count the number of solutions a puzzle has
+function countSolutions(board: number[][]): number {
+  // Make a copy of the board to avoid modifying the original
+  const boardCopy = board.map((row) => [...row])
+  let count = 0
+
+  // Find an empty cell
+  const emptyCell = findEmptyCell(boardCopy)
+  if (!emptyCell) {
+    // No empty cells means we have a solution
+    return 1
+  }
+
+  const [row, col] = emptyCell
+
+  // Try each number 1-9
+  for (let num = 1; num <= 9; num++) {
+    if (isValidPlacement(boardCopy, row, col, num)) {
+      boardCopy[row][col] = num
+
+      // Recursively count solutions
+      count += countSolutions(boardCopy)
+
+      // If we've found more than one solution, we can stop
+      if (count > 1) {
+        return count
+      }
+
+      // Backtrack
+      boardCopy[row][col] = 0
+    }
+  }
+
+  return count
+}
+
+// Find an empty cell in the board
+function findEmptyCell(board: number[][]): [number, number] | null {
+  for (let row = 0; row < 9; row++) {
+    for (let col = 0; col < 9; col++) {
+      if (board[row][col] === 0) {
+        return [row, col]
+      }
+    }
+  }
+  return null
+}
+
+// Convert null values to 0 for solving algorithms
+function convertBoardForSolving(board: SudokuBoard): number[][] {
+  return board.map((row) => row.map((cell) => (cell === null ? 0 : cell)))
+}
+
 // Create a puzzle by removing numbers from a solved board
 function createPuzzle(solvedBoard: number[][], difficulty: "easy" | "medium" | "hard"): SudokuBoard {
   // Clone the solved board
   const puzzle: SudokuBoard = JSON.parse(JSON.stringify(solvedBoard))
 
-  // Determine how many cells to remove based on difficulty
-  let cellsToRemove: number
+  // Determine target number of clues based on difficulty
+  let targetClues: number
   switch (difficulty) {
     case "easy":
-      cellsToRemove = 40 // 41 clues remaining
+      targetClues = 41 // 41 clues remaining (40 removed)
       break
     case "medium":
-      cellsToRemove = 50 // 31 clues remaining
+      targetClues = 31 // 31 clues remaining (50 removed)
       break
     case "hard":
-      cellsToRemove = 60 // 21 clues remaining
+      targetClues = 26 // 26 clues remaining (55 removed) - adjusted to ensure uniqueness
       break
     default:
-      cellsToRemove = 50
+      targetClues = 31
   }
 
   // Create a list of all positions
@@ -105,11 +158,55 @@ function createPuzzle(solvedBoard: number[][], difficulty: "easy" | "medium" | "
   // Shuffle the positions
   positions.sort(() => Math.random() - 0.5)
 
+  // Keep track of cells we've tried to remove
+  const triedPositions = new Set<string>()
+
   // Remove numbers one by one, ensuring the puzzle still has a unique solution
-  for (let i = 0; i < cellsToRemove; i++) {
-    const [row, col] = positions[i]
+  let currentClues = 81 // Start with a full board
+  let consecutiveFailures = 0
+  const maxConsecutiveFailures = 10 // Stop after 10 consecutive failures to remove cells
+
+  // Continue until we reach the target number of clues or have tried all positions
+  // or have too many consecutive failures
+  while (currentClues > targetClues && triedPositions.size < 81 && consecutiveFailures < maxConsecutiveFailures) {
+    // Find a position we haven't tried yet
+    let position: [number, number] | undefined
+    for (const pos of positions) {
+      const [row, col] = pos
+      const key = `${row},${col}`
+      if (!triedPositions.has(key) && puzzle[row][col] !== null) {
+        position = pos
+        triedPositions.add(key)
+        break
+      }
+    }
+
+    if (!position) break // No more positions to try
+
+    const [row, col] = position
+    const valueBackup = puzzle[row][col]
     puzzle[row][col] = null
+
+    // Convert puzzle to number[][] for solution counting
+    const boardForSolving = convertBoardForSolving(puzzle)
+
+    // Check if the puzzle still has a unique solution
+    const solutionCount = countSolutions(boardForSolving)
+
+    if (solutionCount === 1) {
+      // This removal preserves uniqueness
+      currentClues--
+      consecutiveFailures = 0 // Reset failure counter on success
+    } else {
+      // This removal creates multiple solutions, put the value back
+      puzzle[row][col] = valueBackup
+      consecutiveFailures++
+    }
   }
+
+  // If we couldn't reach the target due to uniqueness constraints,
+  // that's okay - we'll return the puzzle with as many cells removed
+  // as possible while maintaining a unique solution
 
   return puzzle
 }

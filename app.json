@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Sudoku Game",
-    "slug": "sudoku",
+    "slug": "sudoku-game",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -11,9 +11,7 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true
     },
@@ -23,12 +21,9 @@
         "backgroundColor": "#ffffff"
       }
     },
-    "web": {},
-    "extra": {
-      "eas": {
-        "projectId": "6c839ab5-2139-4fbb-8bbd-b01cff499f64"
-      }
-    },
-    "owner": "yiningt"
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
   }
 }
+

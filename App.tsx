@@ -1,7 +1,6 @@
-import React from "react";
-import { StatusBar } from "expo-status-bar";
-import { View } from "react-native";
-import SudokuGame from "./components/SudokuGame";
+import { StatusBar } from "expo-status-bar"
+import { View } from "react-native"
+import SudokuGame from "./components/SudokuGame"
 
 export default function App() {
   return (
@@ -9,5 +8,6 @@ export default function App() {
       <StatusBar style="auto" />
       <SudokuGame />
     </View>
-  );
+  )
 }
+
