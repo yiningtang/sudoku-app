@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,192 +10,227 @@ import {
   ScrollView,
   SafeAreaView,
   ActivityIndicator,
-} from "react-native"
-import { generateSudoku, checkSolution } from "../utils/sudoku"
-import { Ionicons } from "@expo/vector-icons"
+} from "react-native";
+import { generateSudoku, checkSolution } from "../utils/sudoku";
+import { Ionicons } from "@expo/vector-icons";
 
-const { width } = Dimensions.get("window")
-const CELL_SIZE = Math.floor(width / 9) - 2
-const CONTAINER_PADDING = 10
+const { width } = Dimensions.get("window");
+const CELL_SIZE = Math.floor(width / 9) - 2;
+const CONTAINER_PADDING = 10;
 
 export default function SudokuGame() {
-  const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">("medium")
-  const [board, setBoard] = useState<(number | null)[][]>([])
-  const [solution, setSolution] = useState<number[][]>([])
-  const [selectedCell, setSelectedCell] = useState<[number, number] | null>(null)
-  const [notes, setNotes] = useState<Record<string, number[]>>({})
-  const [isNoteMode, setIsNoteMode] = useState(false)
-  const [timer, setTimer] = useState(0)
-  const [isRunning, setIsRunning] = useState(true)
-  const [isComplete, setIsComplete] = useState(false)
-  const [initialBoard, setInitialBoard] = useState<(number | null)[][]>([])
-  const [isLoading, setIsLoading] = useState(false)
+  const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">(
+    "medium"
+  );
+  const [board, setBoard] = useState<(number | null)[][]>([]);
+  const [solution, setSolution] = useState<number[][]>([]);
+  const [selectedCell, setSelectedCell] = useState<[number, number] | null>(
+    null
+  );
+  const [selectedNumber, setSelectedNumber] = useState<number | null>(null);
+  const [notes, setNotes] = useState<Record<string, number[]>>({});
+  const [isNoteMode, setIsNoteMode] = useState(false);
+  const [timer, setTimer] = useState(0);
+  const [isRunning, setIsRunning] = useState(true);
+  const [isComplete, setIsComplete] = useState(false);
+  const [initialBoard, setInitialBoard] = useState<(number | null)[][]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Initialize the game
   useEffect(() => {
-    newGame()
-  }, [])
+    newGame();
+  }, []);
 
   // Timer
   useEffect(() => {
-    let interval: NodeJS.Timeout | undefined
+    let interval: NodeJS.Timeout | undefined;
 
     if (isRunning && !isComplete) {
       interval = setInterval(() => {
-        setTimer((prev) => prev + 1)
-      }, 1000)
+        setTimer((prev) => prev + 1);
+      }, 1000);
     }
 
     return () => {
-      if (interval) clearInterval(interval)
-    }
-  }, [isRunning, isComplete])
+      if (interval) clearInterval(interval);
+    };
+  }, [isRunning, isComplete]);
 
   const newGame = async () => {
-    setIsLoading(true)
-    setIsRunning(false)
+    setIsLoading(true);
+    setIsRunning(false);
+    setSelectedNumber(null);
 
     // Use setTimeout to allow the loading indicator to render
     setTimeout(() => {
       try {
-        const { puzzle, solution } = generateSudoku(difficulty)
-        setBoard(puzzle)
-        setSolution(solution)
-        setInitialBoard(JSON.parse(JSON.stringify(puzzle)))
-        setSelectedCell(null)
-        setNotes({})
-        setTimer(0)
-        setIsComplete(false)
-        setIsRunning(true)
+        const { puzzle, solution } = generateSudoku(difficulty);
+        setBoard(puzzle);
+        setSolution(solution);
+        setInitialBoard(JSON.parse(JSON.stringify(puzzle)));
+        setSelectedCell(null);
+        setNotes({});
+        setTimer(0);
+        setIsComplete(false);
+        setIsRunning(true);
       } catch (error) {
-        console.error("Error generating puzzle:", error)
+        console.error("Error generating puzzle:", error);
       } finally {
-        setIsLoading(false)
+        setIsLoading(false);
       }
-    }, 100)
-  }
+    }, 100);
+  };
 
   const handleCellPress = (row: number, col: number) => {
-    setSelectedCell([row, col])
-  }
+    setSelectedCell([row, col]);
+
+    // If the cell has a number, select that number
+    const cellValue = board[row][col];
+    if (cellValue !== null) {
+      setSelectedNumber(cellValue);
+    }
+  };
 
   const handleNumberInput = (num: number) => {
-    if (!selectedCell || isComplete) return
+    if (!selectedCell || isComplete) return;
 
-    const [row, col] = selectedCell
+    const [row, col] = selectedCell;
 
     // Don't allow changing initial numbers
-    if (initialBoard[row][col] !== null) return
+    if (initialBoard[row][col] !== null) return;
 
     if (isNoteMode) {
-      const cellKey = `${row}-${col}`
-      const currentNotes = notes[cellKey] || []
+      const cellKey = `${row}-${col}`;
+      const currentNotes = notes[cellKey] || [];
 
       setNotes({
         ...notes,
-        [cellKey]: currentNotes.includes(num) ? currentNotes.filter((n) => n !== num) : [...currentNotes, num].sort(),
-      })
+        [cellKey]: currentNotes.includes(num)
+          ? currentNotes.filter((n) => n !== num)
+          : [...currentNotes, num].sort(),
+      });
     } else {
-      const newBoard = [...board.map((row) => [...row])]
-      newBoard[row][col] = num === board[row][col] ? null : num
-      setBoard(newBoard)
+      const newBoard = [...board.map((row) => [...row])];
+      newBoard[row][col] = num === board[row][col] ? null : num;
+      setBoard(newBoard);
+
+      // Update selected number
+      setSelectedNumber(num === board[row][col] ? null : num);
 
       // Check if the puzzle is complete
-      const isBoardFilled = newBoard.every((row) => row.every((cell) => cell !== null))
+      const isBoardFilled = newBoard.every((row) =>
+        row.every((cell) => cell !== null)
+      );
       if (isBoardFilled) {
-        const isCorrect = checkSolution(newBoard, solution)
+        const isCorrect = checkSolution(newBoard, solution);
         if (isCorrect) {
-          setIsComplete(true)
-          setIsRunning(false)
+          setIsComplete(true);
+          setIsRunning(false);
         }
       }
     }
-  }
+  };
 
   const handleClear = () => {
-    if (!selectedCell) return
-    const [row, col] = selectedCell
+    if (!selectedCell) return;
+    const [row, col] = selectedCell;
 
     // Don't allow clearing initial numbers
-    if (initialBoard[row][col] !== null) return
+    if (initialBoard[row][col] !== null) return;
 
-    const newBoard = [...board.map((row) => [...row])]
-    newBoard[row][col] = null
-    setBoard(newBoard)
+    const newBoard = [...board.map((row) => [...row])];
+    newBoard[row][col] = null;
+    setBoard(newBoard);
 
     // Clear notes for this cell
-    const cellKey = `${row}-${col}`
-    const newNotes = { ...notes }
-    delete newNotes[cellKey]
-    setNotes(newNotes)
-  }
+    const cellKey = `${row}-${col}`;
+    const newNotes = { ...notes };
+    delete newNotes[cellKey];
+    setNotes(newNotes);
+  };
 
   const getHint = () => {
-    if (!selectedCell) return
+    if (!selectedCell) return;
 
-    const [row, col] = selectedCell
+    const [row, col] = selectedCell;
 
     // Don't provide hints for initial numbers
-    if (initialBoard[row][col] !== null) return
+    if (initialBoard[row][col] !== null) return;
 
-    const newBoard = [...board.map((row) => [...row])]
-    newBoard[row][col] = solution[row][col]
-    setBoard(newBoard)
+    const newBoard = [...board.map((row) => [...row])];
+    newBoard[row][col] = solution[row][col];
+    setBoard(newBoard);
+
+    // Update selected number
+    setSelectedNumber(solution[row][col]);
 
     // Clear notes for this cell
-    const cellKey = `${row}-${col}`
-    const newNotes = { ...notes }
-    delete newNotes[cellKey]
-    setNotes(newNotes)
-  }
+    const cellKey = `${row}-${col}`;
+    const newNotes = { ...notes };
+    delete newNotes[cellKey];
+    setNotes(newNotes);
+  };
 
   const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
-  }
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs
+      .toString()
+      .padStart(2, "0")}`;
+  };
 
   const isCellSelected = (row: number, col: number) => {
-    return selectedCell?.[0] === row && selectedCell?.[1] === col
-  }
+    return selectedCell?.[0] === row && selectedCell?.[1] === col;
+  };
 
   const isCellInSameRowOrCol = (row: number, col: number) => {
-    if (!selectedCell) return false
-    const [selRow, selCol] = selectedCell
-    return selRow === row || selCol === col
-  }
+    if (!selectedCell) return false;
+    const [selRow, selCol] = selectedCell;
+    return selRow === row || selCol === col;
+  };
 
   const isCellInSameBlock = (row: number, col: number) => {
-    if (!selectedCell) return false
-    const [selRow, selCol] = selectedCell
-    const blockRow = Math.floor(selRow / 3)
-    const blockCol = Math.floor(selCol / 3)
-    const cellBlockRow = Math.floor(row / 3)
-    const cellBlockCol = Math.floor(col / 3)
-    return blockRow === cellBlockRow && blockCol === cellBlockCol
-  }
+    if (!selectedCell) return false;
+    const [selRow, selCol] = selectedCell;
+    const blockRow = Math.floor(selRow / 3);
+    const blockCol = Math.floor(selCol / 3);
+    const cellBlockRow = Math.floor(row / 3);
+    const cellBlockCol = Math.floor(col / 3);
+    return blockRow === cellBlockRow && blockCol === cellBlockCol;
+  };
 
   const isSameNumber = (row: number, col: number) => {
-    if (!selectedCell) return false
-    const [selRow, selCol] = selectedCell
-    return board[row][col] !== null && board[selRow][selCol] !== null && board[row][col] === board[selRow][selCol]
-  }
+    if (!selectedCell) return false;
+    const [selRow, selCol] = selectedCell;
+    return (
+      board[row][col] !== null &&
+      board[selRow][selCol] !== null &&
+      board[row][col] === board[selRow][selCol]
+    );
+  };
+
+  const isSelectedNumber = (row: number, col: number) => {
+    return selectedNumber !== null && board[row][col] === selectedNumber;
+  };
 
   const isInitialCell = (row: number, col: number) => {
-    return initialBoard[row][col] !== null
-  }
+    return initialBoard[row][col] !== null;
+  };
 
   const getCellBackgroundColor = (row: number, col: number) => {
-    if (isCellSelected(row, col)) return "#bbdefb"
-    if (isCellInSameRowOrCol(row, col) || isCellInSameBlock(row, col)) return "#e3f2fd"
-    return "white"
-  }
+    if (isCellSelected(row, col)) return "#bbdefb";
+    if (isSelectedNumber(row, col)) return "#e3f2fd";
+    if (isCellInSameRowOrCol(row, col) || isCellInSameBlock(row, col))
+      return "#f5f5f5";
+    return "white";
+  };
 
   const getCellTextColor = (row: number, col: number) => {
-    if (isInitialCell(row, col)) return "#000000"
-    if (isSameNumber(row, col)) return "#1976d2"
-    return "#555555"
-  }
+    if (isInitialCell(row, col)) return "#000000";
+    if (isSelectedNumber(row, col)) return "#1976d2";
+    if (isSameNumber(row, col)) return "#1976d2";
+    return "#555555";
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -210,11 +245,19 @@ export default function SudokuGame() {
               onPress={() => setIsRunning(!isRunning)}
               disabled={isLoading}
             >
-              <Ionicons name={isRunning ? "pause" : "play"} size={18} color="#555" />
+              <Ionicons
+                name={isRunning ? "pause" : "play"}
+                size={18}
+                color="#555"
+              />
               <Text style={styles.controlText}>{formatTime(timer)}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.controlButton} onPress={newGame} disabled={isLoading}>
+            <TouchableOpacity
+              style={styles.controlButton}
+              onPress={newGame}
+              disabled={isLoading}
+            >
               <Ionicons name="refresh" size={18} color="#555" />
               <Text style={styles.controlText}>New</Text>
             </TouchableOpacity>
@@ -222,14 +265,25 @@ export default function SudokuGame() {
 
           <View style={styles.controlsRow}>
             <TouchableOpacity
-              style={[styles.controlButton, isNoteMode && styles.activeControlButton]}
+              style={[
+                styles.controlButton,
+                isNoteMode && styles.activeControlButton,
+              ]}
               onPress={() => setIsNoteMode(!isNoteMode)}
               disabled={isLoading}
             >
-              <Ionicons name="pencil" size={18} color={isNoteMode ? "#fff" : "#555"} />
+              <Ionicons
+                name="pencil"
+                size={18}
+                color={isNoteMode ? "#fff" : "#555"}
+              />
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.controlButton} onPress={getHint} disabled={isLoading}>
+            <TouchableOpacity
+              style={styles.controlButton}
+              onPress={getHint}
+              disabled={isLoading}
+            >
               <Ionicons name="bulb" size={18} color="#555" />
             </TouchableOpacity>
           </View>
@@ -246,40 +300,80 @@ export default function SudokuGame() {
             {/* Difficulty selector */}
             <View style={styles.difficultyContainer}>
               <TouchableOpacity
-                style={[styles.difficultyButton, difficulty === "easy" && styles.activeDifficultyButton]}
+                style={[
+                  styles.difficultyButton,
+                  difficulty === "easy" && styles.activeDifficultyButton,
+                ]}
                 onPress={() => {
-                  setDifficulty("easy")
-                  newGame()
+                  setDifficulty("easy");
+                  newGame();
                 }}
-                disabled={isLoading}
               >
-                <Text style={[styles.difficultyText, difficulty === "easy" && styles.activeDifficultyText]}>Easy</Text>
+                <Text
+                  style={[
+                    styles.difficultyText,
+                    difficulty === "easy" && styles.activeDifficultyText,
+                  ]}
+                >
+                  Easy
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.difficultyButton, difficulty === "medium" && styles.activeDifficultyButton]}
+                style={[
+                  styles.difficultyButton,
+                  difficulty === "medium" && styles.activeDifficultyButton,
+                ]}
                 onPress={() => {
-                  setDifficulty("medium")
-                  newGame()
+                  setDifficulty("medium");
+                  newGame();
                 }}
-                disabled={isLoading}
               >
-                <Text style={[styles.difficultyText, difficulty === "medium" && styles.activeDifficultyText]}>
+                <Text
+                  style={[
+                    styles.difficultyText,
+                    difficulty === "medium" && styles.activeDifficultyText,
+                  ]}
+                >
                   Medium
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.difficultyButton, difficulty === "hard" && styles.activeDifficultyButton]}
+                style={[
+                  styles.difficultyButton,
+                  difficulty === "hard" && styles.activeDifficultyButton,
+                ]}
                 onPress={() => {
-                  setDifficulty("hard")
-                  newGame()
+                  setDifficulty("hard");
+                  newGame();
                 }}
-                disabled={isLoading}
               >
-                <Text style={[styles.difficultyText, difficulty === "hard" && styles.activeDifficultyText]}>Hard</Text>
+                <Text
+                  style={[
+                    styles.difficultyText,
+                    difficulty === "hard" && styles.activeDifficultyText,
+                  ]}
+                >
+                  Hard
+                </Text>
               </TouchableOpacity>
             </View>
+
+            {/* Selected number indicator */}
+            {selectedNumber !== null && (
+              <View style={styles.selectedNumberContainer}>
+                <Text style={styles.selectedNumberText}>
+                  Selected: {selectedNumber}
+                </Text>
+                <TouchableOpacity
+                  style={styles.clearSelectionButton}
+                  onPress={() => setSelectedNumber(null)}
+                >
+                  <Ionicons name="close-circle" size={18} color="#555" />
+                </TouchableOpacity>
+              </View>
+            )}
 
             {/* Sudoku board */}
             {board.length > 0 && (
@@ -291,18 +385,27 @@ export default function SudokuGame() {
                         key={`${rowIndex}-${colIndex}`}
                         style={[
                           styles.cell,
-                          { backgroundColor: getCellBackgroundColor(rowIndex, colIndex) },
-                          (colIndex + 1) % 3 === 0 && colIndex < 8 && styles.rightBorder,
-                          (rowIndex + 1) % 3 === 0 && rowIndex < 8 && styles.bottomBorder,
+                          {
+                            backgroundColor: getCellBackgroundColor(
+                              rowIndex,
+                              colIndex
+                            ),
+                          },
+                          (colIndex + 1) % 3 === 0 &&
+                            colIndex < 8 &&
+                            styles.rightBorder,
+                          (rowIndex + 1) % 3 === 0 &&
+                            rowIndex < 8 &&
+                            styles.bottomBorder,
                         ]}
                         onPress={() => handleCellPress(rowIndex, colIndex)}
-                        disabled={isLoading}
                       >
                         {cell !== null ? (
                           <Text
                             style={[
                               styles.cellText,
-                              isInitialCell(rowIndex, colIndex) && styles.initialCellText,
+                              isInitialCell(rowIndex, colIndex) &&
+                                styles.initialCellText,
                               { color: getCellTextColor(rowIndex, colIndex) },
                             ]}
                           >
@@ -311,13 +414,22 @@ export default function SudokuGame() {
                         ) : (
                           <View style={styles.notesContainer}>
                             {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => {
-                              const cellKey = `${rowIndex}-${colIndex}`
-                              const hasNote = notes[cellKey]?.includes(num)
+                              const cellKey = `${rowIndex}-${colIndex}`;
+                              const hasNote = notes[cellKey]?.includes(num);
                               return (
-                                <Text key={num} style={[styles.noteText, !hasNote && styles.hiddenNote]}>
+                                <Text
+                                  key={num}
+                                  style={[
+                                    styles.noteText,
+                                    !hasNote && styles.hiddenNote,
+                                    selectedNumber === num &&
+                                      hasNote &&
+                                      styles.highlightedNoteText,
+                                  ]}
+                                >
                                   {num}
                                 </Text>
-                              )
+                              );
                             })}
                           </View>
                         )}
@@ -333,17 +445,30 @@ export default function SudokuGame() {
               {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
                 <TouchableOpacity
                   key={num}
-                  style={styles.numberButton}
-                  onPress={() => handleNumberInput(num)}
-                  disabled={isLoading}
+                  style={[
+                    styles.numberButton,
+                    selectedNumber === num && styles.selectedNumberButton,
+                  ]}
+                  onPress={() => {
+                    handleNumberInput(num);
+                    // Also select this number for highlighting
+                    setSelectedNumber(selectedNumber === num ? null : num);
+                  }}
                 >
-                  <Text style={styles.numberButtonText}>{num}</Text>
+                  <Text
+                    style={[
+                      styles.numberButtonText,
+                      selectedNumber === num && styles.selectedNumberButtonText,
+                    ]}
+                  >
+                    {num}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
             {/* Clear button */}
-            <TouchableOpacity style={styles.clearButton} onPress={handleClear} disabled={isLoading}>
+            <TouchableOpacity style={styles.clearButton} onPress={handleClear}>
               <Text style={styles.clearButtonText}>Clear</Text>
             </TouchableOpacity>
 
@@ -351,32 +476,19 @@ export default function SudokuGame() {
             {isComplete && (
               <View style={styles.completeContainer}>
                 <Ionicons name="checkmark-circle" size={24} color="#4caf50" />
-                <Text style={styles.completeText}>Congratulations! You solved the puzzle in {formatTime(timer)}</Text>
+                <Text style={styles.completeText}>
+                  Congratulations! You solved the puzzle in {formatTime(timer)}
+                </Text>
               </View>
             )}
           </>
         )}
-
-        {/* Rest of the component remains the same... */}
       </ScrollView>
     </SafeAreaView>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
-  // Add these new styles
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-    height: 300,
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: "#555",
-  },
   container: {
     flex: 1,
     backgroundColor: "#f5f5f5",
@@ -445,6 +557,23 @@ const styles = StyleSheet.create({
   activeDifficultyText: {
     color: "white",
   },
+  selectedNumberContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#e3f2fd",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 16,
+  },
+  selectedNumberText: {
+    fontSize: 14,
+    color: "#1976d2",
+    marginRight: 8,
+  },
+  clearSelectionButton: {
+    padding: 2,
+  },
   boardContainer: {
     width: width - 2 * CONTAINER_PADDING,
     height: width - 2 * CONTAINER_PADDING,
@@ -497,6 +626,10 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: "#888",
   },
+  highlightedNoteText: {
+    color: "#1976d2",
+    fontWeight: "bold",
+  },
   hiddenNote: {
     opacity: 0,
   },
@@ -519,9 +652,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e0e0e0",
   },
+  selectedNumberButton: {
+    backgroundColor: "#e3f2fd",
+    borderColor: "#1976d2",
+  },
   numberButtonText: {
     fontSize: 24,
     color: "#333",
+  },
+  selectedNumberButtonText: {
+    color: "#1976d2",
+    fontWeight: "bold",
   },
   clearButton: {
     width: "100%",
@@ -551,5 +692,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#2e7d32",
   },
-})
-
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+    height: 300,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: "#555",
+  },
+});
