@@ -177,3 +177,28 @@ function solveBoard(board: number[][]): boolean {
   return true
 }
 
+export function isValidSudoku(board: (number|null)[][]): boolean {
+  const rowMap: Set<number|null>[] = Array.from({ length: 9 }, () => new Set());
+  const colMap: Set<number|null>[] = Array.from({ length: 9 }, () => new Set());
+  const boxMap: Set<number|null>[] = Array.from({ length: 9 }, () => new Set());
+
+  for (let i = 0; i < 9; i++) {
+    for (let j = 0; j < 9; j++) {
+      const val = board[i][j];
+
+      if (val === 0) continue;
+
+      const boxIndex = Math.floor(i / 3) * 3 + Math.floor(j / 3);
+
+      if (rowMap[i].has(val) || colMap[j].has(val) || boxMap[boxIndex].has(val)) {
+        return false;
+      }
+
+      rowMap[i].add(val);
+      colMap[j].add(val);
+      boxMap[boxIndex].add(val);
+    }
+  }
+
+  return true;
+}
