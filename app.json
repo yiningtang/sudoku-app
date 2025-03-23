@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Sudoku Game",
-    "slug": "sudoku-game",
+    "slug": "sudoku",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -23,7 +23,11 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "6c839ab5-2139-4fbb-8bbd-b01cff499f64"
+      }
     }
   }
 }
-
