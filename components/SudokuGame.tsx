@@ -13,7 +13,7 @@ import {
   Modal,
   Animated,
 } from "react-native";
-import { generateSudoku, checkSolution } from "../utils/sudoku";
+import { generateSudoku } from "../utils/sudoku";
 import { Ionicons } from "@expo/vector-icons";
 
 const { width } = Dimensions.get("window");
@@ -37,13 +37,10 @@ export default function SudokuGame() {
   const [isComplete, setIsComplete] = useState(false);
   const [initialBoard, setInitialBoard] = useState<(number | null)[][]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [invalidCells, setInvalidCells] = useState<Set<string>>(new Set());
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [scaleAnim] = useState(new Animated.Value(0.5));
   const [opacityAnim] = useState(new Animated.Value(0));
-  const [incorrectCells, setIncorrectCells] = useState<Set<string>>(new Set());
-  const [showErrorMessage, setShowErrorMessage] = useState(false);
-  const [errorMessageTimer, setErrorMessageTimer] =
-    useState<NodeJS.Timeout | null>(null);
 
   // Initialize the game
   useEffect(() => {
@@ -64,6 +61,45 @@ export default function SudokuGame() {
       if (interval) clearInterval(interval);
     };
   }, [isRunning, isComplete]);
+
+  const newGame = async () => {
+    setIsLoading(true);
+    setIsRunning(false);
+    setSelectedNumber(null);
+    setInvalidCells(new Set());
+
+    // Use setTimeout to allow the loading indicator to render
+    setTimeout(() => {
+      try {
+        const { puzzle, solution } = generateSudoku(difficulty);
+        setBoard(puzzle);
+        setSolution(solution);
+        setInitialBoard(JSON.parse(JSON.stringify(puzzle)));
+        setSelectedCell(null);
+        setNotes({});
+        setTimer(0);
+        setIsComplete(false);
+        setIsRunning(true);
+      } catch (error) {
+        console.error("Error generating puzzle:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }, 100);
+  };
+
+  const getDifficultyText = () => {
+    switch (difficulty) {
+      case "easy":
+        return "Easy";
+      case "medium":
+        return "Medium";
+      case "hard":
+        return "Hard";
+      default:
+        return "Medium";
+    }
+  };
 
   // Show success modal when game is complete
   useEffect(() => {
@@ -91,51 +127,73 @@ export default function SudokuGame() {
     }
   }, [isComplete]);
 
-  // Clean up error message timer
-  useEffect(() => {
-    return () => {
-      if (errorMessageTimer) {
-        clearTimeout(errorMessageTimer);
+  // Check if the current board state is valid
+  const validateBoard = (newBoard: (number | null)[][]): Set<string> => {
+    const invalidPositions = new Set<string>();
+
+    // Check each cell
+    for (let row = 0; row < 9; row++) {
+      for (let col = 0; col < 9; col++) {
+        const value = newBoard[row][col];
+        if (value === null) continue;
+
+        // Temporarily remove the value to check if it's valid
+        newBoard[row][col] = null;
+
+        // Check if placing this value here is valid
+        if (!isValidSudokuPlacement(newBoard, row, col, value)) {
+          invalidPositions.add(`${row}-${col}`);
+        }
+
+        // Put the value back
+        newBoard[row][col] = value;
       }
-    };
-  }, [errorMessageTimer]);
-
-  const newGame = async () => {
-    setIsLoading(true);
-    setIsRunning(false);
-    setSelectedNumber(null);
-    setShowSuccessModal(false);
-    setIncorrectCells(new Set());
-    setShowErrorMessage(false);
-
-    if (errorMessageTimer) {
-      clearTimeout(errorMessageTimer);
-      setErrorMessageTimer(null);
     }
 
-    // Use setTimeout to allow the loading indicator to render
-    setTimeout(() => {
-      try {
-        const { puzzle, solution } = generateSudoku(difficulty);
-        setBoard(puzzle);
-        setSolution(solution);
-        setInitialBoard(JSON.parse(JSON.stringify(puzzle)));
-        setSelectedCell(null);
-        setNotes({});
-        setTimer(0);
-        setIsComplete(false);
-        setIsRunning(true);
-      } catch (error) {
-        console.error("Error generating puzzle:", error);
-      } finally {
-        setIsLoading(false);
+    return invalidPositions;
+  };
+
+  // Check if placing a number at a position is valid according to Sudoku rules
+  const isValidSudokuPlacement = (
+    board: (number | null)[][],
+    row: number,
+    col: number,
+    num: number
+  ): boolean => {
+    // Check row
+    for (let i = 0; i < 9; i++) {
+      if (i !== col && board[row][i] === num) {
+        return false;
       }
-    }, 100);
+    }
+
+    // Check column
+    for (let i = 0; i < 9; i++) {
+      if (i !== row && board[i][col] === num) {
+        return false;
+      }
+    }
+
+    // Check 3x3 box
+    const boxRow = Math.floor(row / 3) * 3;
+    const boxCol = Math.floor(col / 3) * 3;
+
+    for (let i = 0; i < 3; i++) {
+      for (let j = 0; j < 3; j++) {
+        const r = boxRow + i;
+        const c = boxCol + j;
+        if (r !== row || c !== col) {
+          if (board[r][c] === num) {
+            return false;
+          }
+        }
+      }
+    }
+
+    return true;
   };
 
   const handleCellPress = (row: number, col: number) => {
-    if (isComplete) return;
-
     setSelectedCell([row, col]);
 
     // If the cell has a number, select that number
@@ -143,27 +201,6 @@ export default function SudokuGame() {
     if (cellValue !== null) {
       setSelectedNumber(cellValue);
     }
-  };
-
-  const isNumberCorrect = (row: number, col: number, num: number): boolean => {
-    return solution[row][col] === num;
-  };
-
-  const showError = () => {
-    setShowErrorMessage(true);
-
-    // Clear any existing timer
-    if (errorMessageTimer) {
-      clearTimeout(errorMessageTimer);
-    }
-
-    // Set a new timer to hide the error message after 3 seconds
-    const timer = setTimeout(() => {
-      setShowErrorMessage(false);
-      setErrorMessageTimer(null);
-    }, 3000);
-
-    setErrorMessageTimer(timer);
   };
 
   const handleNumberInput = (num: number) => {
@@ -185,73 +222,48 @@ export default function SudokuGame() {
           : [...currentNotes, num].sort(),
       });
     } else {
-      // Check if the number is the same as already in the cell
-      if (board[row][col] === num) {
-        // If it's the same, just clear the cell
-        const newBoard = [...board.map((row) => [...row])];
+      const newBoard = [...board.map((row) => [...row])];
+
+      // If the same number is already there, clear it
+      if (newBoard[row][col] === num) {
         newBoard[row][col] = null;
         setBoard(newBoard);
 
-        // Remove from incorrect cells if it was there
-        if (incorrectCells.has(`${row}-${col}`)) {
-          const newIncorrectCells = new Set(incorrectCells);
-          newIncorrectCells.delete(`${row}-${col}`);
-          setIncorrectCells(newIncorrectCells);
-        }
-
         // Update selected number
         setSelectedNumber(null);
+
+        // Revalidate the board
+        const newInvalidCells = validateBoard(newBoard);
+        setInvalidCells(newInvalidCells);
         return;
       }
 
-      // Check if the number is correct according to the solution
-      const isCorrect = isNumberCorrect(row, col, num);
-
-      const newBoard = [...board.map((row) => [...row])];
+      // Check if placing this number here is valid
       newBoard[row][col] = num;
+
+      // Update the board
       setBoard(newBoard);
 
       // Update selected number
       setSelectedNumber(num);
 
-      if (!isCorrect) {
-        // Add to incorrect cells using functional update to avoid render loops
-        setIncorrectCells((prevIncorrectCells) => {
-          const newIncorrectCells = new Set(prevIncorrectCells);
-          newIncorrectCells.add(`${row}-${col}`);
-          return newIncorrectCells;
-        });
+      // Validate the board
+      const newInvalidCells = validateBoard(newBoard);
+      setInvalidCells(newInvalidCells);
 
-        // Show error message
-        showError();
-      } else {
-        // Remove from incorrect cells if it was there
-        setIncorrectCells((prevIncorrectCells) => {
-          if (prevIncorrectCells.has(`${row}-${col}`)) {
-            const newIncorrectCells = new Set(prevIncorrectCells);
-            newIncorrectCells.delete(`${row}-${col}`);
-            return newIncorrectCells;
-          }
-          return prevIncorrectCells;
-        });
-
-        // Check if the puzzle is complete
-        const isBoardFilled = newBoard.every((row) =>
-          row.every((cell) => cell !== null)
-        );
-        if (isBoardFilled) {
-          const isCorrect = checkSolution(newBoard, solution);
-          if (isCorrect) {
-            setIsComplete(true);
-            setIsRunning(false);
-          }
-        }
+      // Check if the puzzle is complete
+      const isBoardFilled = newBoard.every((row) =>
+        row.every((cell) => cell !== null)
+      );
+      if (isBoardFilled && newInvalidCells.size === 0) {
+        setIsComplete(true);
+        setIsRunning(false);
       }
     }
   };
 
   const handleClear = () => {
-    if (!selectedCell || isComplete) return;
+    if (!selectedCell) return;
     const [row, col] = selectedCell;
 
     // Don't allow clearing initial numbers
@@ -261,25 +273,19 @@ export default function SudokuGame() {
     newBoard[row][col] = null;
     setBoard(newBoard);
 
-    // Remove from incorrect cells if it was there
-    setIncorrectCells((prevIncorrectCells) => {
-      if (prevIncorrectCells.has(`${row}-${col}`)) {
-        const newIncorrectCells = new Set(prevIncorrectCells);
-        newIncorrectCells.delete(`${row}-${col}`);
-        return newIncorrectCells;
-      }
-      return prevIncorrectCells;
-    });
-
     // Clear notes for this cell
     const cellKey = `${row}-${col}`;
     const newNotes = { ...notes };
     delete newNotes[cellKey];
     setNotes(newNotes);
+
+    // Revalidate the board
+    const newInvalidCells = validateBoard(newBoard);
+    setInvalidCells(newInvalidCells);
   };
 
   const getHint = () => {
-    if (!selectedCell || isComplete) return;
+    if (!selectedCell) return;
 
     const [row, col] = selectedCell;
 
@@ -290,16 +296,6 @@ export default function SudokuGame() {
     newBoard[row][col] = solution[row][col];
     setBoard(newBoard);
 
-    // Remove from incorrect cells if it was there
-    setIncorrectCells((prevIncorrectCells) => {
-      if (prevIncorrectCells.has(`${row}-${col}`)) {
-        const newIncorrectCells = new Set(prevIncorrectCells);
-        newIncorrectCells.delete(`${row}-${col}`);
-        return newIncorrectCells;
-      }
-      return prevIncorrectCells;
-    });
-
     // Update selected number
     setSelectedNumber(solution[row][col]);
 
@@ -308,6 +304,10 @@ export default function SudokuGame() {
     const newNotes = { ...notes };
     delete newNotes[cellKey];
     setNotes(newNotes);
+
+    // Revalidate the board
+    const newInvalidCells = validateBoard(newBoard);
+    setInvalidCells(newInvalidCells);
   };
 
   const formatTime = (seconds: number) => {
@@ -320,6 +320,10 @@ export default function SudokuGame() {
 
   const isCellSelected = (row: number, col: number) => {
     return selectedCell?.[0] === row && selectedCell?.[1] === col;
+  };
+
+  const isCellInvalid = (row: number, col: number) => {
+    return invalidCells.has(`${row}-${col}`);
   };
 
   const isCellInSameRowOrCol = (row: number, col: number) => {
@@ -356,39 +360,21 @@ export default function SudokuGame() {
     return initialBoard[row][col] !== null;
   };
 
-  const isIncorrectCell = (row: number, col: number) => {
-    const key = `${row}-${col}`;
-    return incorrectCells.has(key);
-  };
-
   const getCellBackgroundColor = (row: number, col: number) => {
-    if (isIncorrectCell(row, col)) return "#ffcdd2"; // Light red for incorrect cells
-    if (isSelectedNumber(row, col)) return "#e3f2fd";
     if (isCellSelected(row, col)) return "#bbdefb";
+    if (isCellInvalid(row, col)) return "#ffcdd2";
+    if (isSelectedNumber(row, col)) return "#e3f2fd";
     if (isCellInSameRowOrCol(row, col) || isCellInSameBlock(row, col))
       return "#f5f5f5";
     return "white";
   };
 
   const getCellTextColor = (row: number, col: number) => {
-    if (isIncorrectCell(row, col)) return "#d32f2f"; // Dark red for incorrect numbers
+    if (isCellInvalid(row, col)) return "#d32f2f";
     if (isInitialCell(row, col)) return "#000000";
     if (isSelectedNumber(row, col)) return "#1976d2";
     if (isSameNumber(row, col)) return "#1976d2";
     return "#555555";
-  };
-
-  const getDifficultyText = () => {
-    switch (difficulty) {
-      case "easy":
-        return "Easy";
-      case "medium":
-        return "Medium";
-      case "hard":
-        return "Hard";
-      default:
-        return "Medium";
-    }
   };
 
   return (
@@ -402,7 +388,7 @@ export default function SudokuGame() {
             <TouchableOpacity
               style={styles.controlButton}
               onPress={() => setIsRunning(!isRunning)}
-              disabled={isLoading || isComplete}
+              disabled={isLoading}
             >
               <Ionicons
                 name={isRunning ? "pause" : "play"}
@@ -429,7 +415,7 @@ export default function SudokuGame() {
                 isNoteMode && styles.activeControlButton,
               ]}
               onPress={() => setIsNoteMode(!isNoteMode)}
-              disabled={isLoading || isComplete}
+              disabled={isLoading}
             >
               <Ionicons
                 name="pencil"
@@ -441,20 +427,12 @@ export default function SudokuGame() {
             <TouchableOpacity
               style={styles.controlButton}
               onPress={getHint}
-              disabled={isLoading || isComplete}
+              disabled={isLoading}
             >
               <Ionicons name="bulb" size={18} color="#555" />
             </TouchableOpacity>
           </View>
         </View>
-
-        {/* Error message */}
-        {showErrorMessage && (
-          <View style={styles.errorContainer}>
-            <Ionicons name="alert-circle" size={20} color="#d32f2f" />
-            <Text style={styles.errorText}>Incorrect number! Try again.</Text>
-          </View>
-        )}
 
         {/* Loading indicator */}
         {isLoading ? (
@@ -475,7 +453,6 @@ export default function SudokuGame() {
                   setDifficulty("easy");
                   newGame();
                 }}
-                disabled={isLoading}
               >
                 <Text
                   style={[
@@ -496,7 +473,6 @@ export default function SudokuGame() {
                   setDifficulty("medium");
                   newGame();
                 }}
-                disabled={isLoading}
               >
                 <Text
                   style={[
@@ -517,7 +493,6 @@ export default function SudokuGame() {
                   setDifficulty("hard");
                   newGame();
                 }}
-                disabled={isLoading}
               >
                 <Text
                   style={[
@@ -531,7 +506,7 @@ export default function SudokuGame() {
             </View>
 
             {/* Selected number indicator */}
-            {selectedNumber !== null && !isComplete && (
+            {selectedNumber !== null && (
               <View style={styles.selectedNumberContainer}>
                 <Text style={styles.selectedNumberText}>
                   Selected: {selectedNumber}
@@ -542,6 +517,16 @@ export default function SudokuGame() {
                 >
                   <Ionicons name="close-circle" size={18} color="#555" />
                 </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Error message - only shown when board is invalid */}
+            {invalidCells.size > 0 && (
+              <View style={styles.errorContainer}>
+                <Ionicons name="alert-circle" size={18} color="#d32f2f" />
+                <Text style={styles.errorText}>
+                  Invalid board - please fix highlighted cells
+                </Text>
               </View>
             )}
 
@@ -569,7 +554,6 @@ export default function SudokuGame() {
                             styles.bottomBorder,
                         ]}
                         onPress={() => handleCellPress(rowIndex, colIndex)}
-                        disabled={isComplete}
                       >
                         {cell !== null ? (
                           <Text
@@ -612,109 +596,112 @@ export default function SudokuGame() {
             )}
 
             {/* Number input pad */}
-            {!isComplete && (
-              <View style={styles.numberPad}>
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-                  <TouchableOpacity
-                    key={num}
+            <View style={styles.numberPad}>
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                <TouchableOpacity
+                  key={num}
+                  style={[
+                    styles.numberButton,
+                    selectedNumber === num && styles.selectedNumberButton,
+                  ]}
+                  onPress={() => {
+                    handleNumberInput(num);
+                    // Also select this number for highlighting
+                    setSelectedNumber(selectedNumber === num ? null : num);
+                  }}
+                >
+                  <Text
                     style={[
-                      styles.numberButton,
-                      selectedNumber === num && styles.selectedNumberButton,
+                      styles.numberButtonText,
+                      selectedNumber === num && styles.selectedNumberButtonText,
                     ]}
-                    onPress={() => {
-                      handleNumberInput(num);
-                      // Also select this number for highlighting
-                      setSelectedNumber(selectedNumber === num ? null : num);
-                    }}
-                    disabled={isComplete}
                   >
-                    <Text
-                      style={[
-                        styles.numberButtonText,
-                        selectedNumber === num &&
-                          styles.selectedNumberButtonText,
-                      ]}
-                    >
-                      {num}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
+                    {num}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
             {/* Clear button */}
-            {!isComplete && (
-              <TouchableOpacity
-                style={styles.clearButton}
-                onPress={handleClear}
-                disabled={isComplete}
-              >
-                <Text style={styles.clearButtonText}>Clear</Text>
-              </TouchableOpacity>
+            <TouchableOpacity style={styles.clearButton} onPress={handleClear}>
+              <Text style={styles.clearButtonText}>Clear</Text>
+            </TouchableOpacity>
+
+            {/* Game complete message */}
+            {isComplete && (
+              <View style={styles.completeContainer}>
+                <Ionicons name="checkmark-circle" size={24} color="#4caf50" />
+                <Text style={styles.completeText}>
+                  Congratulations! You solved the puzzle in {formatTime(timer)}
+                </Text>
+              </View>
             )}
+            {/* Success Modal */}
+            <Modal
+              visible={showSuccessModal}
+              transparent={true}
+              animationType="fade"
+              onRequestClose={() => setShowSuccessModal(false)}
+            >
+              <View style={styles.modalOverlay}>
+                <Animated.View
+                  style={[
+                    styles.successModal,
+                    {
+                      transform: [{ scale: scaleAnim }],
+                      opacity: opacityAnim,
+                    },
+                  ]}
+                >
+                  <View style={styles.confettiContainer}>
+                    <Ionicons
+                      name="trophy"
+                      size={80}
+                      color="#FFD700"
+                      style={styles.trophyIcon}
+                    />
+                  </View>
+
+                  <Text style={styles.congratsText}>Congratulations!</Text>
+                  <Text style={styles.successText}>
+                    You've completed the puzzle!
+                  </Text>
+
+                  <View style={styles.statsContainer}>
+                    <View style={styles.statItem}>
+                      <Text style={styles.statLabel}>Time</Text>
+                      <Text style={styles.statValue}>{formatTime(timer)}</Text>
+                    </View>
+
+                    <View style={styles.statItem}>
+                      <Text style={styles.statLabel}>Difficulty</Text>
+                      <Text style={styles.statValue}>
+                        {getDifficultyText()}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.successButtonsContainer}>
+                    <TouchableOpacity
+                      style={[styles.successButton, styles.viewBoardButton]}
+                      onPress={() => setShowSuccessModal(false)}
+                    >
+                      <Text style={styles.viewBoardButtonText}>View Board</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.successButton, styles.newGameButton]}
+                      onPress={newGame}
+                    >
+                      <Text style={styles.newGameButtonText}>New Game</Text>
+                    </TouchableOpacity>
+                  </View>
+                </Animated.View>
+              </View>
+            </Modal>
           </>
         )}
       </ScrollView>
-
-      {/* Success Modal */}
-      <Modal
-        visible={showSuccessModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowSuccessModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <Animated.View
-            style={[
-              styles.successModal,
-              {
-                transform: [{ scale: scaleAnim }],
-                opacity: opacityAnim,
-              },
-            ]}
-          >
-            <View style={styles.confettiContainer}>
-              <Ionicons
-                name="trophy"
-                size={80}
-                color="#FFD700"
-                style={styles.trophyIcon}
-              />
-            </View>
-
-            <Text style={styles.congratsText}>Congratulations!</Text>
-            <Text style={styles.successText}>You've completed the puzzle!</Text>
-
-            <View style={styles.statsContainer}>
-              <View style={styles.statItem}>
-                <Text style={styles.statLabel}>Time</Text>
-                <Text style={styles.statValue}>{formatTime(timer)}</Text>
-              </View>
-
-              <View style={styles.statItem}>
-                <Text style={styles.statLabel}>Difficulty</Text>
-                <Text style={styles.statValue}>{getDifficultyText()}</Text>
-              </View>
-            </View>
-
-            <View style={styles.successButtonsContainer}>
-              <TouchableOpacity
-                style={[styles.successButton, styles.viewBoardButton]}
-                onPress={() => setShowSuccessModal(false)}
-              >
-                <Text style={styles.viewBoardButtonText}>View Board</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.successButton, styles.newGameButton]}
-                onPress={newGame}
-              >
-                <Text style={styles.newGameButtonText}>New Game</Text>
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -763,22 +750,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#555",
   },
-  errorContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#ffebee",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#ffcdd2",
-  },
-  errorText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: "#d32f2f",
-  },
   difficultyContainer: {
     flexDirection: "row",
     justifyContent: "center",
@@ -811,7 +782,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    marginBottom: 16,
+    marginBottom: 8,
   },
   selectedNumberText: {
     fontSize: 14,
@@ -820,6 +791,34 @@ const styles = StyleSheet.create({
   },
   clearSelectionButton: {
     padding: 2,
+  },
+  invalidCellsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ffebee",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 16,
+  },
+  invalidCellsText: {
+    fontSize: 14,
+    color: "#d32f2f",
+    marginLeft: 8,
+  },
+  errorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ffebee",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 16,
+  },
+  errorText: {
+    fontSize: 14,
+    color: "#d32f2f",
+    marginLeft: 8,
   },
   boardContainer: {
     width: width - 2 * CONTAINER_PADDING,
@@ -858,9 +857,6 @@ const styles = StyleSheet.create({
   initialCellText: {
     fontWeight: "bold",
     color: "#000",
-  },
-  incorrectCellText: {
-    color: "#d32f2f",
   },
   notesContainer: {
     flexDirection: "row",
@@ -928,6 +924,19 @@ const styles = StyleSheet.create({
   clearButtonText: {
     fontSize: 16,
     color: "#555",
+  },
+  completeContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#e8f5e9",
+    borderRadius: 8,
+    padding: 16,
+    marginTop: 16,
+  },
+  completeText: {
+    marginLeft: 8,
+    fontSize: 16,
+    color: "#2e7d32",
   },
   loadingContainer: {
     flex: 1,
