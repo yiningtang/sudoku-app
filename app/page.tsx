@@ -1,4 +1,4 @@
-import SudokuGame from "@/components/sudoku-game"
+import SudokuGame from "@/components/SudokuGame";
 
 export default function Home() {
   return (
@@ -8,6 +8,5 @@ export default function Home() {
         <SudokuGame />
       </div>
     </main>
-  )
+  );
 }
-
